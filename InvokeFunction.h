@@ -8,7 +8,8 @@
 
 #ifndef __INVOKE_FUNCTION_H__
 #define __INVOKE_FUNCTION_H__
-namespace exp {
+
+namespace crashtest {
 
 using Callable = int(void);
 
@@ -20,6 +21,6 @@ struct CrashDescriptor {
 
 void invokeFunction(Callable func, CrashDescriptor &desc);
 
-} // namespace exp
+} // namespace crashtest
 
 #endif // __INVOKE_FUNCTION_H__

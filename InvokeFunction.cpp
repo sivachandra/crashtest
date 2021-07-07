@@ -13,8 +13,7 @@
 
 #include <unordered_map>
 
-namespace exp {
-
+namespace crashtest {
 
 class Caller {
   using SigHandlerType = void(int);
@@ -66,4 +65,4 @@ void invokeFunction(Callable func, CrashDescriptor &desc) {
   caller.call(func, desc);
 }
 
-} // namespace exp
+} // namespace crashtest
