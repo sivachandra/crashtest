@@ -8,6 +8,7 @@
 
 #include "InvokeFunction.h"
 
+#include <fenv.h>
 #include <setjmp.h>
 #include <signal.h>
 
@@ -15,22 +16,31 @@
 
 namespace crashtest {
 
+#if defined(__WIN32) || defined(_WIN64)
+  static constexpr int all_signals[1] = {SIGABRT, SIGFPE, SIGSEGV};
+#else
+  static constexpr int all_signals[6] = {SIGABRT, SIGFPE, SIGILL, SIGINT, SIGSEGV, SIGTERM};
+#endif
+
 class Caller {
   using SigHandlerType = void(int);
   std::unordered_map<int, SigHandlerType *> saved_handlers;
 
-  static jmp_buf jump_buffer;
-  static CrashDescriptor descriptor;
+  static thread_local jmp_buf jump_buffer;
+  static thread_local CrashDescriptor descriptor;
 
   static void signalHandler(int sig) {
     descriptor.crashed = true;
     descriptor.sig = sig;
+#if defined(__WIN32) || defined(_WIN64)
     longjmp(jump_buffer, -1);
+#else
+    siglongjmp(jump_buffer, -1);
+#endif
   }
 
 public:
   Caller() {
-    constexpr int all_signals[] = {SIGABRT, SIGFPE, SIGILL, SIGINT, SIGSEGV, SIGTERM};
     for (int sig : all_signals) {
       saved_handlers[sig] = signal(sig, &signalHandler);
     }
@@ -45,8 +55,16 @@ public:
   void call(Callable func, CrashDescriptor &desc) {
     descriptor.crashed = false;
     int retval = -1;
+#if defined(__WIN32) || defined(_WIN64)
     if (setjmp(jump_buffer) == 0)
       retval = func();
+#else
+    int enabled_excepts = fegetexcept();
+    if (sigsetjmp(jump_buffer, 1) == 0) {
+      retval = func();
+    }
+    feenableexcept(enabled_excepts);
+#endif
     if (descriptor.crashed) {
       desc.crashed = true;
       desc.sig = descriptor.sig;
@@ -57,8 +75,8 @@ public:
   }
 };
 
-jmp_buf Caller::jump_buffer;
-CrashDescriptor Caller::descriptor;
+thread_local jmp_buf Caller::jump_buffer;
+thread_local CrashDescriptor Caller::descriptor;
 
 void invokeFunction(Callable func, CrashDescriptor &desc) {
   Caller caller;
